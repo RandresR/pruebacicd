@@ -80,4 +80,26 @@ jobs:
   container-security:
     name: 🐳 Container Scan
     needs: build-and-test
-    runs-
+    runs-on: ubuntu-latest
+    # Solo escaneamos en la rama main o en el merge final
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t coindash-api:latest ./coindash-api
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'coindash-api:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Deploy simulation
+        run: echo "🚀 Deploy successful to production!"
