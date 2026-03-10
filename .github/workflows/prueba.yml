@@ -1,18 +1,48 @@
-name: CI Pipeline
+name: Secure CI/CD Pipeline (DevSecOps)
 
 on:
   push:
-    branches:
-      - main
-      - feature/**
+    branches: [ main, 'feature/**' ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build-test-deploy:
+  security-scan:
+    name: 🛡️ Security & Analysis
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write # Necesario para CodeQL
+      actions: read
+      contents: read
 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 1. Escaneo de Dependencias (SCA) con Snyk
+      # Necesitas crear una cuenta en Snyk y añadir SNYK_TOKEN a GitHub Secrets
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+          directory: coindash-api
+
+      # 2. Análisis Estático (SAST) con CodeQL
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  build-and-test:
+    name: 🏗️ Build & Test
+    needs: security-scan # Solo corre si la seguridad pasa
+    runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,14 +51,42 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: 'npm'
+          cache-dependency-path: coindash-api/package-lock.json
 
       - name: Install dependencies
         working-directory: coindash-api
-        run: npm install
+        run: npm ci
 
-      - name: Run tests
+      # 3. Gestión de Secretos (Simulación de uso)
+      # No uses variables de entorno en duro. Usa Secrets.
+      - name: Run tests with Secrets
         working-directory: coindash-api
+        env:
+          DB_CONNECTION: ${{ secrets.DB_CONNECTION }}
+          API_KEY: ${{ secrets.COINDASH_API_KEY }}
         run: npm test
 
-      - name: Deploy simulation
-        run: echo "🚀 Deploy successful!"
+  # 4. Escaneo de Contenedores con Trivy
+  container-security:
+    name: 🐳 Container Scan
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' # Solo escaneamos la imagen final de producción
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t coindash-api:latest ./coindash-api
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'coindash-api:latest'
+          format: 'table'
+          exit-code: '1' # Hace que el pipeline falle si hay vulnerabilidades críticas
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'

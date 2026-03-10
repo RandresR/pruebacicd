@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # 📦 Escaneo de Dependencias de Node.js (NPM)
+  - package-ecosystem: "npm"
+    directory: "/coindash-api" # La ruta donde está tu package.json
+    schedule:
+      interval: "daily" # Revisa actualizaciones cada día
+    open-pull-requests-limit: 5 # No nos satures con 50 PRs a la vez
+    labels:
+      - "security"
+      - "dependencies"
+
+  # 🤖 Escaneo de GitHub Actions (para mantener tus acciones en v4, v5, etc.)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
