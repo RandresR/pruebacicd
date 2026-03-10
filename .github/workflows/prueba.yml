@@ -21,14 +21,14 @@ jobs:
 
       # 1. Escaneo de Dependencias (SCA) con Snyk
       # Necesitas crear una cuenta en Snyk y añadir SNYK_TOKEN a GitHub Secrets
+# 1. Escaneo de Dependencias (SCA) con Snyk
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --severity-threshold=high
-          directory: coindash-api
-
+          # Cambiamos 'directory' por el argumento --file apuntando al manifiesto
+          args: --severity-threshold=high --file=coindash-api/package.json
       # 2. Análisis Estático (SAST) con CodeQL
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
